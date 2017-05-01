@@ -7,10 +7,11 @@ import (
 var (
 	MainCmd = &cobra.Command{
 		Use:   "filegrain <command>",
-		Short: "transport-agnostic, fine-grained content-addressable container image layout",
+		Short: "FILEgrain: transport-agnostic, fine-grained content-addressable container image layout",
 	}
 )
 
 func init() {
 	MainCmd.AddCommand(MountCmd)
+	MainCmd.AddCommand(BuildCmd)
 }
