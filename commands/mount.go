@@ -12,7 +12,7 @@ var MountCmd = &cobra.Command{
 	Short: "Mount with lazy fs",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if len(args) != 2 {
-			return errors.New("Must specify mountpoint, manifest")
+			return errors.New("must specify mountpoint and manifest")
 		}
 		opts := &lazyfs.ServerOptions{
 			Mountpoint: args[0],

@@ -1,6 +1,9 @@
-# Filegrain: transport-agnostic, fine-grained content-addressable container image layout
+# FILEgrain: transport-agnostic, fine-grained content-addressable container image layout
 
-Filegrain is a (long-term) proposal to extend [OCI Image Format](https://github.com/opencontainers/image-spec) to support CAS in the granularity of file, in a transport-agnostic way.
+[![Build Status](https://travis-ci.org/AkihiroSuda/filegrain.svg)](https://travis-ci.org/AkihiroSuda/filegrain)
+[![GoDoc](https://godoc.org/github.com/AkihiroSuda/filegrain?status.svg)](https://godoc.org/github.com/AkihiroSuda/filegrain)
+
+FILEgrain is a (long-term) proposal to extend [OCI Image Format](https://github.com/opencontainers/image-spec) to support CAS in the granularity of file, in a transport-agnostic way.
 
 **Your feedback is welcome.**
  
@@ -12,51 +15,118 @@ Pros:
 * Finer deduplication granularity
 
 Cons:
-* The `blobs` directory in the image can contain a large number of files. So, `readdir()` for the directory is likely to become slow. There are some proposals to mitigate this by sharding the `blobs` directory. ([opencontainers/image-spec#449](https://github.com/opencontainers/image-spec/issues/449))
+* The `blobs` directory in the image can contain a large number of files. So, `readdir()` for the directory is likely to become slow. This could be mitigated
 
 ## Format
 
-Filegrain defines the image manifest which is almost identical to the OCI image manifest, but different in the following points:
+FILEgrain defines the image manifest which is almost identical to the OCI image manifest, but different in the following points:
 
- * Filegrain image manifest supports [continuity manifest](https://github.com/stevvooe/continuity) (`application/vnd.continuity.manifest.v0+pb`) as an [Image Layer Filesystem Changeset](https://github.com/opencontainers/image-spec/blob/aad7f240f0c544dcafc9cba98cbf0932a0d068ef/layer.md). Regular files in an image are stored as OCI blob and accessed via the digest value recorded in the continuity manifest. Filegrain still supports tar layers (`application/vnd.oci.image.layer.v1.tar` and its families), and it is even possible to put a continuity layer on top of tar layers, and vice versa. However, it is recommended to compose a manifest of a single continuity layer.
- * The media type of Filegrain image manifest is `application/vnd.filegrain.image.manifest.v0+json`, rather than `application/vnd.oci.image.manifest.v1+json` _at the moment_. If Filegrain can get merged to the OCI spec in the future, the media type should be `application/vnd.oci.image.manifest.vN+json`.
+ * FILEgrain image manifest supports [continuity manifest](https://github.com/stevvooe/continuity) (`application/vnd.continuity.manifest.v0+pb` and `...+json`) as an [Image Layer Filesystem Changeset](https://github.com/opencontainers/image-spec/blob/master/layer.md). Regular files in an image are stored as OCI blob and accessed via the digest value recorded in the continuity manifest. FILEgrain still supports tar layers (`application/vnd.oci.image.layer.v1.tar` and its families), and it is even possible to put a continuity layer on top of tar layers, and vice versa. Tar layers might be useful for enforcing a lot of small files to be downloaded in batch (as a single tar file).
+ * FILEgrain image manifest SHOULD have an annotation `filegrain.version=20170501`, in both the manifest JSON itself and the image index JSON. This annotation WILL change in future versions.
  
-It is possible and strongly recommended to put both a Filegrain manifest file and an OCI manifest file in a single image.
-i.e. the [image index](https://github.com/opencontainers/image-spec/blob/ab461b048bd1c8b6077d8e96936f706a518233c2/image-index.md) for such an image would be like this:
+It is possible and recommended to put both a FILEgrain manifest file and an OCI manifest file in a single image.
+
+## Example
+[image index](https://github.com/opencontainers/image-spec/blob/latest/image-index.md):
+(The second entry is a FILEgrain manifest)
 ```json
 {
-	"schemaVersion": 2,
-	"manifests": [
-		{
-			"mediaType": "application/vnd.oci.image.manifest.v1+json",
-			...
-		}
-		{
-			"mediaType": "application/vnd.filegrain.image.manifest.v0+json",
-			...
-		}
-	]
+    "schemaVersion": 2,
+    "manifests": [
+	{
+	    "mediaType": "application/vnd.oci.image.manifest.v1+json",
+	    ...
+	},
+	{
+	    "mediaType": "application/vnd.oci.image.manifest.v1+json",
+	    ...,
+	    "annotations": {
+		"filegrain.version": "20170501"
+	    }
+	}
+    ]
+}
+```
+
+[image manifest](https://github.com/opencontainers/image-spec/blob/latest/image-manifest.md):
+(a continuity layer on top of a tar layer)
+```json
+{
+    "schemaVersion": 2,
+    "layers": [
+	{
+	    "mediaType": "application/vnd.continuity.manifest.v0+json",
+	    ...
+	},
+	{
+	    "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+	    ..,
+	}
+    ],
+    "annotations": {
+	"filegrain.version": "20170501"
+    }
 }
 ```
 
 ## Distribution
 
-Filegrain is designed agnostic to transportation and hence can be distribeted in any way.
+FILEgrain is designed agnostic to transportation and hence can be distribeted in any way.
 
 My personal recommendation is to just put the image directory to [IPFS](https://ipfs.io).
-However, I intentionally designed Filegrain _not_ to use IPFS multiaddr/multihash.
+However, I intentionally designed FILEgrain _not_ to use IPFS multiaddr/multihash.
+
+### Future support for IPFS blob store
+
+So as to avoid putting a lot file into a single OCI blob directory, it might be good to consider using IPFS as an additional blob store.
+
+IPFS store support is not yet undertaken, but it would be like this:
+
+```json
+{
+    "schemaVersion": 2,
+    "layers": [
+	{
+		"mediaType": "application/vnd.continuity.manifest.v0+json",
+		...,
+		"annotations": {
+			"filegrain.ipfs": "QmFooBar"
+		}
+	}
+    ],
+    "annotations": {
+	"filegrain.version": "2017XXXX"
+    }
+}
+```
+
+In this case, the layer SHOULD be fetch via IPFS multihash, rather than the digest values specified in the continuity manifest.
+Also, the continuity manifest MAY omit digest values, since IPFS provides them redundantly.
+
+Note that this is different from just putting the `blobs` directory onto IPFS, which would still create a lot of files on a single directory, when pulled from non-FILEgrain implementation.
+
 
 ## POC
 
-N/A yet.
+Builder:
 
-Plan:
+- [X] Build a FILEgrain image from a rootfs directory
+- [ ] Build a FILEgrain image from an existing OCI image
 
- * Converter:
-   * Convert OCI image to Filegrain
- * Lazy Puller and Mounter (FUSE):
-   * Multiple lazy-puller backends (e.g. IPFS, git)
-   * Emulate slow network so as to show the effect of lazy layer distribution
+Lazy Puller and Mounter (FUSE):
+- [ ] Local blob store with slow network emulation, so as to show the effect of lazy layer distribution
+- [ ] Remote blob store (generic OCI style)
+- [ ] IPFS blob store
+
+### Build a FILEgrain image from a rootfs directory
+
+```console
+$ filegrain build /tmp/ubuntu-rootfs /tmp/x
+INFO[0000] Initializing /tmp/x as an OCI image (spec 1.0.0-rc5-dev)
+ 5505 / 5505 [=========================================================================================] 100.00% 5s
+INFO[0005] Built image manifest sha256:6f4e4ee7af8bdde42535effd8b097744fc3f849d20de1ee6b7c30141907f0a16
+INFO[0005] Tag: latest
+```
 
 ## Similar work
 
@@ -85,7 +155,7 @@ Please also refer to the list of [similar work about lazy distribution](#similar
 
 **Q. Isn't it a bad idea to put a lot of file into a single blobs directory?**
 
-A. Yes, the blob system should be refined on the OCI side. Please refer to [opencontainers/image-spec#449](https://github.com/opencontainers/image-spec/issues/449).
+A. This could be mitigated by avoid putting file into the OCI blob store, and use an external blob store instead e.g. IPFS. (go-ipfs supports [sharding](https://github.com/ipfs/go-ipfs/pull/3042)), although not transport-agnostic.
+See also [an idea about future support for IPFS blob store](#future-support-for-ipfs-blob-store).
 
-Another idea is to just avoid putting files into the blobs directory, and use IPFS instead.
-But this is not transport-agnostic.
+Also, there is an idea to implement sharding to the OCI native blob store: [opencontainers/image-spec#449](https://github.com/opencontainers/image-spec/issues/449).
