@@ -4,11 +4,6 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/AkihiroSuda/filegrain/cp"
-	"github.com/AkihiroSuda/filegrain/image"
-	"github.com/AkihiroSuda/filegrain/image/imageutil"
-	"github.com/AkihiroSuda/filegrain/version"
-
 	"github.com/Sirupsen/logrus"
 	progressbar "github.com/cheggaaa/pb"
 	"github.com/golang/protobuf/proto"
@@ -17,6 +12,12 @@ import (
 	spec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stevvooe/continuity"
 	pb "github.com/stevvooe/continuity/proto"
+
+	"github.com/AkihiroSuda/filegrain/continuityutil"
+	"github.com/AkihiroSuda/filegrain/cp"
+	"github.com/AkihiroSuda/filegrain/image"
+	"github.com/AkihiroSuda/filegrain/image/imageutil"
+	"github.com/AkihiroSuda/filegrain/version"
 )
 
 type fromRootFSBuilder struct {
@@ -120,7 +121,7 @@ func putContinuityManifestBlobs(img, source string, manifest *continuity.Manifes
 		return nil, err
 	}
 	return &spec.Descriptor{
-		MediaType: "application/vnd.continuity.manifest.v0+pb", // TODO: JSON
+		MediaType: continuityutil.MediaTypeManifestV0Protobuf, // TODO: JSON
 		Digest:    d,
 		Size:      int64(len(manifestBytes)),
 	}, nil

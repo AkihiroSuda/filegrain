@@ -3,8 +3,9 @@ package imageutil
 import (
 	"encoding/json"
 
-	"github.com/AkihiroSuda/filegrain/image"
 	spec "github.com/opencontainers/image-spec/specs-go/v1"
+
+	"github.com/AkihiroSuda/filegrain/image"
 )
 
 func WriteJSONBlob(img string, x interface{}, mediaType string) (*spec.Descriptor, error) {

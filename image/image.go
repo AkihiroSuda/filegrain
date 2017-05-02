@@ -1,8 +1,6 @@
 package image
 
 import (
-	_ "crypto/sha256"
-	_ "crypto/sha512"
 	"encoding/json"
 	"errors"
 	"io"
@@ -49,7 +47,11 @@ func indexPath(img string) string {
 	return filepath.Join(img, "index.json")
 }
 
-func GetBlobReader(img string, d digest.Digest) (io.Reader, error) {
+type BlobReader interface {
+	io.ReadSeeker
+}
+
+func GetBlobReader(img string, d digest.Digest) (BlobReader, error) {
 	return os.Open(blobPath(img, d))
 }
 
@@ -74,7 +76,8 @@ type BlobWriter struct {
 }
 
 func NewBlobWriter(img string, algo digest.Algorithm) (*BlobWriter, error) {
-	f, err := ioutil.TempFile("", "blobwriter")
+	// use img rather than the default tmp, so as to make sure rename(2) can be applied
+	f, err := ioutil.TempFile(img, "tmp.blobwriter")
 	if err != nil {
 		return nil, err
 	}
@@ -99,6 +102,9 @@ func (bw *BlobWriter) Close() error {
 		return err
 	}
 	newPath := blobPath(bw.img, bw.digester.Digest())
+	if err := os.MkdirAll(filepath.Dir(newPath), 0755); err != nil {
+		return err
+	}
 	if err := os.Rename(oldPath, newPath); err != nil {
 		return err
 	}

@@ -3,8 +3,9 @@ package commands
 import (
 	"errors"
 
-	"github.com/AkihiroSuda/filegrain/builder"
 	"github.com/spf13/cobra"
+
+	"github.com/AkihiroSuda/filegrain/builder"
 )
 
 var (
@@ -18,7 +19,7 @@ var (
 		Short: "Build a FILEgrain image",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 2 {
-				errors.New("must specify source and target")
+				return errors.New("must specify source and target")
 			}
 			source, target := args[0], args[1]
 			b, err := builder.NewBuilderWithRootFS(source)
