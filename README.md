@@ -114,19 +114,55 @@ Builder:
 - [ ] Build a FILEgrain image from an existing OCI image
 
 Lazy Puller and Mounter (FUSE):
-- [ ] Local blob store with slow network emulation, so as to show the effect of lazy layer distribution
+
+- [X] Local blob store
 - [ ] Remote blob store (generic OCI style)
 - [ ] IPFS blob store
 
-### Build a FILEgrain image from a rootfs directory
+### POC Usage
+
+Extract a Docker container to `/tmp/raw-rootfs` directory:
+```console
+# mkdir /tmp/raw-rootfs
+# docker create --name tmp ubuntu:latest
+# docker export tmp | tar Cxf /tmp/raw-rootfs -
+# docker rm tmp
+```
+
+Convert `/tmp/raw-rootfs` directory to a FILEgrain image `/tmp/filegrain-image`:
 
 ```console
-$ filegrain build /tmp/ubuntu-rootfs /tmp/x
-INFO[0000] Initializing /tmp/x as an OCI image (spec 1.0.0-rc5-dev)
- 5505 / 5505 [=========================================================================================] 100.00% 5s
-INFO[0005] Built image manifest sha256:6f4e4ee7af8bdde42535effd8b097744fc3f849d20de1ee6b7c30141907f0a16
-INFO[0005] Tag: latest
+# filegrain build /tmp/raw-rootfs /tmp/filegrain-image
 ```
+
+Prepare an OCI bundle `/tmp/bundle`:
+```console
+# mkdir /tmp/bundle
+# cd /tmp/bundle
+# mkdir rootfs
+# runc init
+```
+
+Mount the local FILEgrain image `/tmp/filegrain-image` on `/tmp/bundle/rootfs`:
+```console
+# filegrain mount /tmp/filegrain-image /tmp/bundle/rootfs
+```
+In future, `filegrain mount` should support mounting remote images as well.
+
+Open another terminal, and start runC with the bundle `/tmp/bundle`:
+```console
+# cd /tmp/bundle
+# runc run foo
+```
+
+The container starts without pulling all the blobs.
+Pulled blobs can be found on `/tmp/filegrain-blobcacheXXXXX`:
+
+```console
+# du -hs /tmp/filegrain-blobcache*
+```
+
+This directory grows as you `read(2)` files within the container rootfs.
 
 ## Similar work
 
