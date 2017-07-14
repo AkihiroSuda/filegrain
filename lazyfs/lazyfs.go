@@ -1,107 +1,107 @@
 package lazyfs
 
 import (
-	"encoding/json"
-	"fmt"
-	"io"
-	"io/ioutil"
 	"os"
-	"path/filepath"
+	"syscall"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/hanwen/go-fuse/fuse"
 	"github.com/hanwen/go-fuse/fuse/nodefs"
 	"github.com/hanwen/go-fuse/fuse/pathfs"
+	continuitypb "github.com/stevvooe/continuity/proto"
 
-	"github.com/AkihiroSuda/filegrain/lazyfs/dummycontent"
 	"github.com/AkihiroSuda/filegrain/puller"
 )
 
-// FS is a read-only filesystem with lazy-pull feature.
+// FS is a READ-ONLY filesystem with lazy-pull feature.
 //
 // FS implements github.com/hanwen/go-fuse/fuse/pathfs.FileSystem
 //
 // Supported objects:
-//  - regular files
+//  - directories
+//  - regular files (including hardlinks) (excepts XAttrs)
 //  - symbolic links
 type FS struct {
 	pathfs.FileSystem
-	opts      Options
-	underlier string
+	opts Options
+	tree *nodeManager
 }
 
-func (fs *FS) openDummyContent(name string) (*dummycontent.DummyRegularFileContent, error) {
-	b, err := ioutil.ReadFile(filepath.Join(fs.underlier, name))
-	if err != nil {
-		return nil, err
+func continuityResourceToFuseAttr(res *continuitypb.Resource) *fuse.Attr {
+	mode := res.Mode & uint32(os.ModePerm)
+	siz := res.Size
+	switch res.Mode & uint32(os.ModeType) {
+	case uint32(os.ModeDir):
+		mode |= syscall.S_IFDIR
+	case uint32(os.ModeSymlink):
+		mode |= syscall.S_IFLNK
+	case 0:
+		mode |= syscall.S_IFREG
 	}
-	var c dummycontent.DummyRegularFileContent
-	if err := json.Unmarshal(b, &c); err != nil {
-		return nil, err
+	return &fuse.Attr{
+		Mode: mode,
+		Size: siz,
+		// Times are not supported in current continuity
 	}
-	if len(c.Digests) < 1 {
-		return nil, fmt.Errorf("expected len >= 1, got %d", len(c.Digests))
+}
+
+func (fs *FS) lookup(name string) (*continuitypb.Resource, fuse.Status) {
+	n := fs.tree.lookup(name)
+	if n == nil {
+		return nil, fuse.ENOENT
 	}
-	return &c, nil
+	res, ok := n.x.(*continuitypb.Resource)
+	if !ok {
+		logrus.Errorf("can't convert %#v to *continuitypb.Resource while looking up %q", n.x, name)
+		return nil, fuse.EIO
+	}
+	return res, fuse.OK
 }
 
 func (fs *FS) GetAttr(name string, fc *fuse.Context) (*fuse.Attr, fuse.Status) {
-	attr, ok := fs.FileSystem.GetAttr(name, fc)
-	if ok != fuse.OK {
-		return attr, ok
+	res, st := fs.lookup(name)
+	if st != fuse.OK {
+		return nil, st
 	}
-	c, _ := fs.openDummyContent(name)
-	if c != nil {
-		attr.Size = uint64(c.Size)
-	}
+	attr := continuityResourceToFuseAttr(res)
 	return attr, fuse.OK
 }
 
+func (fs *FS) OpenDir(name string, fc *fuse.Context) ([]fuse.DirEntry, fuse.Status) {
+	n := fs.tree.lookup(name)
+	if n == nil {
+		return nil, fuse.ENOENT
+	}
+	var ents []fuse.DirEntry
+	for k, v := range n.m {
+		res, ok := v.x.(*continuitypb.Resource)
+		if !ok {
+			logrus.Errorf("can't convert %#v to *continuitypb.Resource while opendir %q, %q", n.x, name, k)
+			return nil, fuse.EIO
+		}
+		mode := res.Mode // FIXME?
+		ents = append(ents, fuse.DirEntry{
+			Name: k,
+			Mode: mode,
+		})
+	}
+	return ents, fuse.OK
+}
+
 func (fs *FS) Open(name string, flags uint32, fc *fuse.Context) (nodefs.File, fuse.Status) {
-	f, ok := fs.FileSystem.Open(name, flags, fc)
-	if ok != fuse.OK {
-		return f, ok
+	res, st := fs.lookup(name)
+	if st != fuse.OK {
+		return nil, st
 	}
-	c, _ := fs.openDummyContent(name)
-	if c == nil {
-		return f, ok
-	}
-	reader, err := fs.opts.Puller.PullBlob(fs.opts.Image, c.Digests[0])
-	if err != nil {
-		return nil, fuse.EIO
-	}
-	newf, err := newFile(name, reader, fs)
-	if err != nil {
-		return nil, fuse.EIO
-	}
-	return newf, fuse.OK
+	return newFile(fs.opts, res), fuse.OK
 }
 
-type file struct {
-	nodefs.File
-	name string
-	fs   *FS
-}
-
-func (f *file) GetAttr(out *fuse.Attr) fuse.Status {
-	attr, ok := f.fs.GetAttr(f.name, nil)
-	if attr != nil {
-		*out = *attr
+func (fs *FS) Readlink(name string, fc *fuse.Context) (string, fuse.Status) {
+	res, st := fs.lookup(name)
+	if st != fuse.OK {
+		return "", st
 	}
-	return ok
-}
-
-func newFile(name string, reader io.Reader, fs *FS) (*file, error) {
-	b, err := ioutil.ReadAll(reader)
-	if err != nil {
-		return nil, err
-	}
-	f := nodefs.NewReadOnlyFile(nodefs.NewDataFile(b))
-	return &file{
-		File: f,
-		name: name,
-		fs:   fs,
-	}, nil
+	return res.Target, fuse.OK
 }
 
 type Options struct {
@@ -112,25 +112,16 @@ type Options struct {
 }
 
 func NewFS(opts Options) (*FS, error) {
-	underlier, err := ioutil.TempDir("", "filegrain-underlier")
+	tree, err := loadTree(opts)
 	if err != nil {
 		return nil, err
 	}
-	logrus.Infof("underlier: %s", underlier)
-	if err := loadUnderlier(opts, underlier); err != nil {
-		return nil, err
-	}
 	fs := &FS{
-		FileSystem: pathfs.NewReadonlyFileSystem(pathfs.NewLoopbackFileSystem(underlier)),
+		FileSystem: pathfs.NewReadonlyFileSystem(pathfs.NewDefaultFileSystem()),
 		opts:       opts,
-		underlier:  underlier,
+		tree:       tree,
 	}
 	return fs, nil
-}
-
-func CleanupWithFS(fs *FS) {
-	logrus.Infof("removing %s", fs.underlier)
-	os.RemoveAll(fs.underlier)
 }
 
 func NewServer(fs *FS) (*fuse.Server, error) {
