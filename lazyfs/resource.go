@@ -5,24 +5,24 @@ import (
 	"fmt"
 	"io/ioutil"
 
+	"github.com/golang/protobuf/proto"
 	spec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/stevvooe/continuity"
+	continuitypb "github.com/stevvooe/continuity/proto"
 
-	"github.com/AkihiroSuda/filegrain/continuityutil"
 	"github.com/AkihiroSuda/filegrain/image"
-	"github.com/AkihiroSuda/filegrain/lazyfs/dummycontent"
 )
 
-func loadContinuityManifest(opts Options, desc *spec.Descriptor) (*continuity.Manifest, error) {
+func loadContinuityPBManifest(opts Options, desc *spec.Descriptor) (*continuitypb.Manifest, error) {
 	manifestBlob, err := loadBlobWithDescriptor(opts, desc)
 	if err != nil {
 		return nil, err
 	}
-	manifest, err := continuity.Unmarshal(manifestBlob)
-	if err != nil {
+	var bm continuitypb.Manifest
+
+	if err := proto.Unmarshal(manifestBlob, &bm); err != nil {
 		return nil, err
 	}
-	return manifest, nil
+	return &bm, nil
 }
 
 func loadImageManifest(opts Options) (*spec.Manifest, error) {
@@ -58,25 +58,4 @@ func loadBlobWithDescriptor(opts Options, desc *spec.Descriptor) ([]byte, error)
 		return nil, err
 	}
 	return ioutil.ReadAll(r)
-}
-
-func loadUnderlier(opts Options, dir string) error {
-	imageManifest, err := loadImageManifest(opts)
-	if err != nil {
-		return err
-	}
-	for _, layer := range imageManifest.Layers {
-		// TODO: support mixing up tar layers and continutiy layers..
-		if layer.MediaType != continuityutil.MediaTypeManifestV0Protobuf {
-			return fmt.Errorf("unsupported layer mediaType: %s", layer.MediaType)
-		}
-		manifest, err := loadContinuityManifest(opts, &layer)
-		if err != nil {
-			return err
-		}
-		if err := dummycontent.ApplyContinuityManifestWithDummyContents(dir, manifest); err != nil {
-			return err
-		}
-	}
-	return nil
 }

@@ -59,7 +59,6 @@ func serve(opts lazyfs.Options) error {
 	if err != nil {
 		return err
 	}
-	defer lazyfs.CleanupWithFS(fs)
 	sv, err := lazyfs.NewServer(fs)
 	if err != nil {
 		return err
@@ -70,11 +69,15 @@ func serve(opts lazyfs.Options) error {
 	}
 	go sv.Serve()
 	logrus.Infof("Mounting on %s", opts.Mountpoint)
-	sv.WaitMount()
+	if err := sv.WaitMount(); err != nil {
+		return err
+	}
 	logrus.Infof("Mounted on %s", opts.Mountpoint)
 	defer func() {
 		logrus.Infof("Unmounting %s", opts.Mountpoint)
-		sv.Unmount()
+		if err := sv.Unmount(); err != nil {
+			panic(err) // FIXME
+		}
 		logrus.Infof("Unmounted %s", opts.Mountpoint)
 	}()
 	waitForSIGINT()
