@@ -2,6 +2,8 @@ package builder
 
 import (
 	"fmt"
+	"io"
+	"os"
 	"path/filepath"
 
 	"github.com/Sirupsen/logrus"
@@ -14,7 +16,6 @@ import (
 	pb "github.com/stevvooe/continuity/proto"
 
 	"github.com/AkihiroSuda/filegrain/continuityutil"
-	"github.com/AkihiroSuda/filegrain/cp"
 	"github.com/AkihiroSuda/filegrain/image"
 	"github.com/AkihiroSuda/filegrain/image/imageutil"
 	"github.com/AkihiroSuda/filegrain/version"
@@ -108,7 +109,7 @@ func putContinuityManifestBlobs(img, source string, manifest *continuity.Manifes
 				return nil, fmt.Errorf("no path for %s", d)
 			}
 			blobSourcePath := filepath.Join(source, r.Path[0])
-			if err := cp.CopyFile(blobPath, blobSourcePath); err != nil {
+			if err := copyFile(blobPath, blobSourcePath); err != nil {
 				return nil, err
 			}
 		}
@@ -127,6 +128,24 @@ func putContinuityManifestBlobs(img, source string, manifest *continuity.Manifes
 		Digest:    d,
 		Size:      int64(len(manifestBytes)),
 	}, nil
+}
+
+func copyFile(dst, src string) error {
+	r, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+	w, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(w, r)
+	closeErr := w.Close()
+	if err != nil {
+		return err
+	}
+	return closeErr
 }
 
 // puts image manifest blob and its deps (e.g. config).
