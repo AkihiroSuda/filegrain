@@ -15,7 +15,7 @@ Pros:
 * Finer deduplication granularity
 
 Cons:
-* The `blobs` directory in the image can contain a large number of files. So, `readdir()` for the directory is likely to become slow. This could be mitigated
+* The `blobs` directory in the image can contain a large number of files. So, `readdir()` for the directory is likely to become slow. This could be mitigated by using [external blob stores](#future-support-for-ipfs-blob-store) though.
 
 ## Format
 
@@ -110,29 +110,29 @@ Note that this is different from just putting the `blobs` directory onto IPFS, w
 
 Builder:
 
-- [X] Build a FILEgrain image from a rootfs directory
-- [ ] Build a FILEgrain image from an existing OCI image
+- [ ] Build a FILEgrain image from an existing OCI image (`--source-type oci-image`)
+- [X] Build a FILEgrain image from an existing Docker image  (`--source-type docker-image`)
+- [X] Build a FILEgrain image from a raw rootfs directory (`--source-type rootfs`)
 
-Lazy Puller and Mounter (FUSE):
+Lazy Puller:
 
-- [X] Local blob store
-- [ ] Remote blob store (generic OCI style)
-- [ ] IPFS blob store
+- [X] OCI-style directory on a generic filesystem (`blobs/sha256/deadbeef..`)
+- [ ] Docker registry
+- [ ] IPFS multihash (See [Future support for IPFS blob store](#future-support-for-ipfs-blob-store) section)
+
+Mounter:
+
+- [X] Read-only mount using FUSE (Linux)
+
+Writable mount is not planned at the moment, as FILEgrain is optimized for "cattles" rather than "pets".
+Users should use bind-mount or some union filesystems for `/tmp`, `/run`, and `/home`.
 
 ### POC Usage
 
-Extract a Docker container to `/tmp/raw-rootfs` directory:
-```console
-# mkdir /tmp/raw-rootfs
-# docker create --name tmp ubuntu:latest
-# docker export tmp | tar Cxf /tmp/raw-rootfs -
-# docker rm tmp
-```
-
-Convert `/tmp/raw-rootfs` directory to a FILEgrain image `/tmp/filegrain-image`:
+Convert a Docker image (e.g. `java:8`) to a FILEgrain image `/tmp/filegrain-image`:
 
 ```console
-# filegrain build /tmp/raw-rootfs /tmp/filegrain-image
+# filegrain build -o /tmp/filegrain-image --source-type docker-image java:8
 ```
 
 Prepare an OCI bundle `/tmp/bundle`:
@@ -147,7 +147,7 @@ Mount the local FILEgrain image `/tmp/filegrain-image` on `/tmp/bundle/rootfs`:
 ```console
 # filegrain mount /tmp/filegrain-image /tmp/bundle/rootfs
 ```
-In future, `filegrain mount` should support mounting remote images as well.
+In future, `filegrain mount` should support mounting remote images over Docker Registry HTTP API as well.
 
 Open another terminal, and start runC with the bundle `/tmp/bundle`:
 ```console
