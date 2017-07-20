@@ -36,7 +36,7 @@ func NewBuilderWithRootFS(source string) (Builder, error) {
 }
 
 func (b *fromRootFSBuilder) Build(img, refName string) error {
-	logrus.Infof("Initializing %s as an OCI image (spec %s)", img, specs.Version)
+	logrus.Infof("Initializing %s as a FILEgrain image (Compatible to OCI Image Spec %s)", img, specs.Version)
 	if err := image.Init(img); err != nil {
 		return err
 	}

@@ -37,7 +37,7 @@ func (b *fromDockerImageBuilder) Build(img, refName string) error {
 	if err := os.Mkdir(rootfs, 0755); err != nil {
 		return err
 	}
-	logrus.Infof("unpacking docker image %s", b.source)
+	logrus.Infof("Unpacking docker image %s to %s", b.source, rootfs)
 	if err = convertDockerImageToRootFS(rootfs, b.source); err != nil {
 		return err
 	}

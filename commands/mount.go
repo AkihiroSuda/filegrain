@@ -31,7 +31,7 @@ var (
 			if err != nil {
 				return err
 			}
-			logrus.Infof("blob cache: %s", cachePath)
+			logrus.Infof("Blob cache (ephemeral): %s", cachePath)
 			defer os.RemoveAll(cachePath) // FIXME
 			pvller, err := puller.NewBlobCacher(cachePath,
 				puller.NewLocalPuller())
