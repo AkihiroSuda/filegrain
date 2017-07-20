@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/docker/go-units"
 	"github.com/opencontainers/go-digest"
 	spec "github.com/opencontainers/image-spec/specs-go/v1"
 
@@ -30,6 +31,7 @@ type BlobCacher struct {
 	pullStatusCond *sync.Cond
 
 	pulledBlobBytes uint64 // atomic
+	pulledBlobs     uint64 // atomic
 }
 
 func NewBlobCacher(cachePath string, puller Puller) (*BlobCacher, error) {
@@ -42,7 +44,9 @@ func NewBlobCacher(cachePath string, puller Puller) (*BlobCacher, error) {
 		pullStatus:      make(map[digest.Digest]pullStatus, 0),
 		pullStatusCond:  sync.NewCond(&sync.Mutex{}),
 		pulledBlobBytes: 0,
+		pulledBlobs:     0,
 	}
+	// currently, cachePath needs to be empty.
 	// TODO: load cacher.pulled
 	return cacher, nil
 }
@@ -102,7 +106,8 @@ func (p *BlobCacher) cacheBlob(img string, d digest.Digest) error {
 		return fmt.Errorf("expected %q, got %q", d, dd)
 	}
 	totalCopied := atomic.AddUint64(&p.pulledBlobBytes, uint64(copied))
-	logrus.Infof("Total blob bytes pulled in this session: %d B", totalCopied)
+	totalCachedBlobs := atomic.AddUint64(&p.pulledBlobs, uint64(1))
+	logrus.Infof("Total blob bytes pulled: %s (%dB, %d blobs)", units.BytesSize(float64(totalCopied)), totalCopied, totalCachedBlobs)
 	p.pullStatusCond.L.Lock()
 	p.pullStatus[d] = pullStatusPulled
 	p.pullStatusCond.L.Unlock()
