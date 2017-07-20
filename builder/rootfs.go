@@ -39,10 +39,12 @@ func (b *fromRootFSBuilder) Build(img, refName string) error {
 	if err := image.Init(img); err != nil {
 		return err
 	}
+	logrus.Infof("Building a continuity manifest against %s", b.source)
 	contM, err := buildContinuityManifest(b.source)
 	if err != nil {
 		return err
 	}
+	logrus.Infof("Copying blobs")
 	contMDesc, err := putContinuityManifestBlobs(img, b.source, contM)
 	if err != nil {
 		return err
@@ -130,9 +132,11 @@ func putContinuityManifestBlobs(img, source string, manifest *continuity.Manifes
 // puts image manifest blob and its deps (e.g. config).
 // returns the descriptor of the image manifest blob.
 func putImageManifestBlobs(img string, continuityManifest *spec.Descriptor) (*spec.Descriptor, error) {
+	arch, os := "amd64", "linux" // FIXME
+	logrus.Warnf("Assuming OS/architecture to be %s/%s.", os, arch)
 	config := &spec.Image{
-		Architecture: "amd64", // FIXME
-		OS:           "linux", // FIXME
+		Architecture: arch,
+		OS:           os,
 		RootFS: spec.RootFS{
 			Type: "layers",
 			DiffIDs: []digest.Digest{
