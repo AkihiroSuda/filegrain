@@ -92,6 +92,9 @@ func (p *BlobCacher) cacheBlob(img string, d digest.Digest) error {
 	if err != nil {
 		return err
 	}
+	if err := r.Close(); err != nil {
+		return err
+	}
 	if err := w.Close(); err != nil {
 		return err
 	}
