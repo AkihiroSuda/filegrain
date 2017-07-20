@@ -129,18 +129,23 @@ Users should use bind-mount or some union filesystems for `/tmp`, `/run`, and `/
 
 ### POC Usage
 
+Install FILEgrain binary:
+
+```console
+$ go get github.com/AkihiroSuda/filegrain
+```
+
 Convert a Docker image (e.g. `java:8`) to a FILEgrain image `/tmp/filegrain-image`:
 
 ```console
 # filegrain build -o /tmp/filegrain-image --source-type docker-image java:8
 ```
 
-Prepare an OCI bundle `/tmp/bundle`:
+Prepare an OCI bundle `/tmp/bundle.sh `from [`./oci-runtime-bundle.template`](./oci-runtime-bundle.template/README.md):
 ```console
-# mkdir /tmp/bundle
+# cp -r ./oci-runtime-bundle.template /tmp/bundle
 # cd /tmp/bundle
-# mkdir rootfs
-# runc init
+# ./prepare.sh
 ```
 
 Mount the local FILEgrain image `/tmp/filegrain-image` on `/tmp/bundle/rootfs`:
@@ -154,6 +159,7 @@ Open another terminal, and start runC with the bundle `/tmp/bundle`:
 # cd /tmp/bundle
 # runc run foo
 ```
+Instead of runc, you will be able to use `docker run` as well when Docker supports running an arbitrary OCI runtime bundle.
 
 The container starts without pulling all the blobs.
 Pulled blobs can be found on `/tmp/filegrain-blobcacheXXXXX`:
