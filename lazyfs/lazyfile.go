@@ -47,6 +47,10 @@ func (f *file) Read(buf []byte, off int64) (res fuse.ReadResult, code fuse.Statu
 			len(buf), off, dgst, err)
 		return nil, fuse.EIO
 	}
-	defer br.Close()
+	if err := br.Close(); err != nil {
+		logrus.Errorf("error while closing after reading %d bytes at %d for %s: %v",
+			len(buf), off, dgst, err)
+		return nil, fuse.EIO
+	}
 	return fuse.ReadResultData(buf), fuse.OK
 }
