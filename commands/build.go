@@ -34,7 +34,11 @@ var (
 			if err != nil {
 				return err
 			}
-			return b.Build(buildCmdConfig.target, buildCmdConfig.refName)
+			if err := b.Build(buildCmdConfig.target, buildCmdConfig.refName); err != nil {
+				return err
+			}
+			logrus.Info("Done")
+			return nil
 		},
 	}
 )
@@ -49,7 +53,7 @@ func newBuilder(sourceType, source string) (builder.Builder, error) {
 	if sourceType == "auto" || sourceType == "" {
 		sourceType = guessSourceType(source)
 		if sourceType != "" {
-			logrus.Infof("detected source type %q for %s", sourceType, source)
+			logrus.Infof("Detected source type %q for %s", sourceType, source)
 		} else {
 			return nil, fmt.Errorf("could not detect source type for %s", source)
 		}

@@ -79,8 +79,7 @@ func (p *BlobCacher) cacheBlobIfNotYet(img string, d digest.Digest) error {
 }
 
 func (p *BlobCacher) cacheBlob(img string, d digest.Digest) error {
-	// TODO: use hardlink when possible?
-	logrus.Debugf("caching blob: %s", d)
+	// logrus.Debugf("Caching blob: %s", d)
 	p.pullStatusCond.L.Lock()
 	p.pullStatus[d] = pullStatusPulling
 	p.pullStatusCond.L.Unlock()
@@ -107,7 +106,7 @@ func (p *BlobCacher) cacheBlob(img string, d digest.Digest) error {
 	}
 	totalCopied := atomic.AddUint64(&p.pulledBlobBytes, uint64(copied))
 	totalCachedBlobs := atomic.AddUint64(&p.pulledBlobs, uint64(1))
-	logrus.Infof("Total blob bytes pulled: %s (%dB, %d blobs)", units.BytesSize(float64(totalCopied)), totalCopied, totalCachedBlobs)
+	logrus.Infof("Cache: %d blobs, %s", totalCachedBlobs, units.BytesSize(float64(totalCopied)))
 	p.pullStatusCond.L.Lock()
 	p.pullStatus[d] = pullStatusPulled
 	p.pullStatusCond.L.Unlock()
