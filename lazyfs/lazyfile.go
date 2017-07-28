@@ -1,6 +1,8 @@
 package lazyfs
 
 import (
+	"io"
+
 	"github.com/Sirupsen/logrus"
 	"github.com/hanwen/go-fuse/fuse"
 	"github.com/hanwen/go-fuse/fuse/nodefs"
@@ -42,7 +44,9 @@ func (f *file) Read(buf []byte, off int64) (res fuse.ReadResult, code fuse.Statu
 		logrus.Errorf("error while seeking %s to %d: %v", dgst, off, err)
 		return nil, fuse.EIO
 	}
-	if _, err := br.Read(buf); err != nil {
+	if n, err := br.Read(buf); err == io.EOF {
+		buf = buf[:n]
+	} else if err != nil {
 		logrus.Errorf("error while reading %d bytes at %d for %s: %v",
 			len(buf), off, dgst, err)
 		return nil, fuse.EIO
