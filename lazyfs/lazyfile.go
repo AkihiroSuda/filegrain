@@ -21,7 +21,11 @@ func newFile(opts Options, res *continuitypb.Resource) nodefs.File {
 	f.opts = opts
 	f.res = res
 	f.File = nodefs.NewDefaultFile()
-	return f
+	cached := &nodefs.WithFlags{
+		File:      f,
+		FuseFlags: fuse.FOPEN_KEEP_CACHE,
+	}
+	return cached
 }
 
 func (f *file) GetAttr(out *fuse.Attr) fuse.Status {
