@@ -7,19 +7,18 @@ import (
 	"github.com/hanwen/go-fuse/fuse"
 	"github.com/hanwen/go-fuse/fuse/nodefs"
 	"github.com/opencontainers/go-digest"
-	continuitypb "github.com/stevvooe/continuity/proto"
 )
 
 type file struct {
 	opts Options
-	res  *continuitypb.Resource
+	item *treeItem
 	nodefs.File
 }
 
-func newFile(opts Options, res *continuitypb.Resource) nodefs.File {
+func newFile(opts Options, item *treeItem) nodefs.File {
 	f := new(file)
 	f.opts = opts
-	f.res = res
+	f.item = item
 	f.File = nodefs.NewDefaultFile()
 	cached := &nodefs.WithFlags{
 		File:      f,
@@ -29,16 +28,16 @@ func newFile(opts Options, res *continuitypb.Resource) nodefs.File {
 }
 
 func (f *file) GetAttr(out *fuse.Attr) fuse.Status {
-	*out = *continuityResourceToFuseAttr(f.res)
+	*out = *fuseAttrFromTreeItem(f.item)
 	return fuse.OK
 }
 
 func (f *file) Read(buf []byte, off int64) (res fuse.ReadResult, code fuse.Status) {
-	if len(f.res.Digest) == 0 {
-		logrus.Errorf("no digest for %#v", f.res)
+	if len(f.item.resource.Digest) == 0 {
+		logrus.Errorf("no digest for %#v", f.item.resource)
 		return nil, fuse.EIO
 	}
-	dgst := digest.Digest(f.res.Digest[0])
+	dgst := digest.Digest(f.item.resource.Digest[0])
 	br, err := f.opts.Puller.PullBlob(f.opts.Image, dgst)
 	if err != nil {
 		logrus.Errorf("error while pulling %s: %v", dgst, err)
