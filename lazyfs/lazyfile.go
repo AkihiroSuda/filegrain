@@ -19,7 +19,7 @@ func newFile(opts Options, item *treeItem) nodefs.File {
 	f := new(file)
 	f.opts = opts
 	f.item = item
-	f.File = nodefs.NewDefaultFile()
+	f.File = nodefs.NewReadOnlyFile(nodefs.NewDefaultFile())
 	cached := &nodefs.WithFlags{
 		File:      f,
 		FuseFlags: fuse.FOPEN_KEEP_CACHE,
