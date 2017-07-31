@@ -8,7 +8,6 @@ import (
 	"github.com/hanwen/go-fuse/fuse"
 	"github.com/hanwen/go-fuse/fuse/nodefs"
 	"github.com/hanwen/go-fuse/fuse/pathfs"
-	continuitypb "github.com/stevvooe/continuity/proto"
 
 	"github.com/AkihiroSuda/filegrain/puller"
 )
@@ -27,10 +26,10 @@ type FS struct {
 	tree *nodeManager
 }
 
-func continuityResourceToFuseAttr(res *continuitypb.Resource) *fuse.Attr {
-	mode := res.Mode & uint32(os.ModePerm)
-	siz := res.Size
-	switch res.Mode & uint32(os.ModeType) {
+func fuseAttrFromTreeItem(item *treeItem) *fuse.Attr {
+	mode := item.resource.Mode & uint32(os.ModePerm)
+	siz := item.resource.Size
+	switch item.resource.Mode & uint32(os.ModeType) {
 	case uint32(os.ModeDir):
 		mode |= syscall.S_IFDIR
 	case uint32(os.ModeSymlink):
@@ -39,31 +38,32 @@ func continuityResourceToFuseAttr(res *continuitypb.Resource) *fuse.Attr {
 		mode |= syscall.S_IFREG
 	}
 	return &fuse.Attr{
+		Ino:  item.ino,
 		Mode: mode,
 		Size: siz,
 		// Times are not supported in current continuity
 	}
 }
 
-func (fs *FS) lookup(name string) (*continuitypb.Resource, fuse.Status) {
+func (fs *FS) lookup(name string) (*treeItem, fuse.Status) {
 	n := fs.tree.lookup(name)
 	if n == nil {
 		return nil, fuse.ENOENT
 	}
-	res, ok := n.x.(*continuitypb.Resource)
+	res, ok := n.x.(*treeItem)
 	if !ok {
-		logrus.Errorf("can't convert %#v to *continuitypb.Resource while looking up %q", n.x, name)
+		logrus.Errorf("can't convert %#v to *treeItem while looking up %q", n.x, name)
 		return nil, fuse.EIO
 	}
 	return res, fuse.OK
 }
 
 func (fs *FS) GetAttr(name string, fc *fuse.Context) (*fuse.Attr, fuse.Status) {
-	res, st := fs.lookup(name)
+	item, st := fs.lookup(name)
 	if st != fuse.OK {
 		return nil, st
 	}
-	attr := continuityResourceToFuseAttr(res)
+	attr := fuseAttrFromTreeItem(item)
 	return attr, fuse.OK
 }
 
@@ -74,12 +74,12 @@ func (fs *FS) OpenDir(name string, fc *fuse.Context) ([]fuse.DirEntry, fuse.Stat
 	}
 	var ents []fuse.DirEntry
 	for k, v := range n.m {
-		res, ok := v.x.(*continuitypb.Resource)
+		item, ok := v.x.(*treeItem)
 		if !ok {
-			logrus.Errorf("can't convert %#v to *continuitypb.Resource while opendir %q, %q", n.x, name, k)
+			logrus.Errorf("can't convert %#v to *treeItem while opendir %q, %q", n.x, name, k)
 			return nil, fuse.EIO
 		}
-		mode := res.Mode // FIXME?
+		mode := item.resource.Mode // FIXME?
 		ents = append(ents, fuse.DirEntry{
 			Name: k,
 			Mode: mode,
@@ -89,19 +89,19 @@ func (fs *FS) OpenDir(name string, fc *fuse.Context) ([]fuse.DirEntry, fuse.Stat
 }
 
 func (fs *FS) Open(name string, flags uint32, fc *fuse.Context) (nodefs.File, fuse.Status) {
-	res, st := fs.lookup(name)
+	item, st := fs.lookup(name)
 	if st != fuse.OK {
 		return nil, st
 	}
-	return newFile(fs.opts, res), fuse.OK
+	return newFile(fs.opts, item)
 }
 
 func (fs *FS) Readlink(name string, fc *fuse.Context) (string, fuse.Status) {
-	res, st := fs.lookup(name)
+	item, st := fs.lookup(name)
 	if st != fuse.OK {
 		return "", st
 	}
-	return res.Target, fuse.OK
+	return item.resource.Target, fuse.OK
 }
 
 type Options struct {
@@ -124,9 +124,9 @@ func NewFS(opts Options) (*FS, error) {
 	return fs, nil
 }
 
-func NewServer(fs *FS) (*fuse.Server, error) {
-	nfs := pathfs.NewPathNodeFs(pathfs.NewReadonlyFileSystem(fs), nil)
-	conn := nodefs.NewFileSystemConnector(nfs.Root(), nil)
+func NewServer(fs *FS, opts *nodefs.Options) (*fuse.Server, error) {
+	nfs := pathfs.NewPathNodeFs(fs, nil)
+	conn := nodefs.NewFileSystemConnector(nfs.Root(), opts)
 	return fuse.NewServer(conn.RawFS(), fs.opts.Mountpoint,
 		&fuse.MountOptions{
 			FsName: fs.opts.Mountpoint + ":" + fs.opts.RefName,
