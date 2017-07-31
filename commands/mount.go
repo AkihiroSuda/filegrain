@@ -5,8 +5,10 @@ import (
 	"io/ioutil"
 	"os"
 	"os/signal"
+	"time"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/hanwen/go-fuse/fuse/nodefs"
 	"github.com/spf13/cobra"
 
 	"github.com/AkihiroSuda/filegrain/lazyfs"
@@ -15,8 +17,9 @@ import (
 
 var (
 	mountCmdConfig struct {
-		debugFUSE bool
-		refName   string
+		fuseDebug        bool
+		refName          string
+		fuseCacheTimeout time.Duration
 	}
 
 	MountCmd = &cobra.Command{
@@ -44,26 +47,31 @@ var (
 				Image:      img,
 				RefName:    mountCmdConfig.refName,
 			}
-			return serve(opts)
+			nodefsOpts := nodefs.NewOptions()
+			nodefsOpts.EntryTimeout = mountCmdConfig.fuseCacheTimeout
+			nodefsOpts.AttrTimeout = mountCmdConfig.fuseCacheTimeout
+			nodefsOpts.NegativeTimeout = mountCmdConfig.fuseCacheTimeout
+			return serve(opts, nodefsOpts)
 		},
 	}
 )
 
 func init() {
 	MountCmd.Flags().StringVar(&mountCmdConfig.refName, "tag", "latest", "tag (aka reference name)")
-	MountCmd.Flags().BoolVar(&mountCmdConfig.debugFUSE, "debug-fuse", false, "debug FUSE")
+	MountCmd.Flags().BoolVar(&mountCmdConfig.fuseDebug, "fuse-debug", false, "debug FUSE")
+	MountCmd.Flags().DurationVar(&mountCmdConfig.fuseCacheTimeout, "fuse-cache-timeout", 3*time.Minute, "To be documented")
 }
 
-func serve(opts lazyfs.Options) error {
+func serve(opts lazyfs.Options, nodefsOpts *nodefs.Options) error {
 	fs, err := lazyfs.NewFS(opts)
 	if err != nil {
 		return err
 	}
-	sv, err := lazyfs.NewServer(fs)
+	sv, err := lazyfs.NewServer(fs, nodefsOpts)
 	if err != nil {
 		return err
 	}
-	if mountCmdConfig.debugFUSE {
+	if mountCmdConfig.fuseDebug {
 		fs.SetDebug(true)
 		sv.SetDebug(true)
 	}

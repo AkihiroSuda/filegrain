@@ -3,6 +3,7 @@ package lazyfs
 import (
 	"io"
 
+	"github.com/AkihiroSuda/filegrain/image"
 	"github.com/Sirupsen/logrus"
 	"github.com/hanwen/go-fuse/fuse"
 	"github.com/hanwen/go-fuse/fuse/nodefs"
@@ -10,21 +11,34 @@ import (
 )
 
 type file struct {
-	opts Options
-	item *treeItem
 	nodefs.File
+	opts       Options
+	item       *treeItem
+	blobReader image.BlobReader
 }
 
-func newFile(opts Options, item *treeItem) nodefs.File {
-	f := new(file)
-	f.opts = opts
-	f.item = item
-	f.File = nodefs.NewDefaultFile()
+func newFile(opts Options, item *treeItem) (nodefs.File, fuse.Status) {
+	if len(item.resource.Digest) == 0 {
+		logrus.Errorf("no digest for %v", item.resource.Path)
+		return nil, fuse.EIO
+	}
+	dgst := digest.Digest(item.resource.Digest[0])
+	blobReader, err := opts.Puller.PullBlob(opts.Image, dgst)
+	if err != nil {
+		logrus.Errorf("error while pulling %s (%v): %v", dgst, item.resource.Path, err)
+		return nil, fuse.EIO
+	}
+	f := &file{
+		File:       nodefs.NewDefaultFile(),
+		item:       item,
+		opts:       opts,
+		blobReader: blobReader,
+	}
 	cached := &nodefs.WithFlags{
 		File:      f,
 		FuseFlags: fuse.FOPEN_KEEP_CACHE,
 	}
-	return cached
+	return cached, fuse.OK
 }
 
 func (f *file) GetAttr(out *fuse.Attr) fuse.Status {
@@ -32,31 +46,19 @@ func (f *file) GetAttr(out *fuse.Attr) fuse.Status {
 	return fuse.OK
 }
 
+func (f *file) Release() {
+	if err := f.blobReader.Close(); err != nil {
+		logrus.Errorf("error while closing %v: %v",
+			f.item.resource.Path, err)
+	}
+}
+
 func (f *file) Read(buf []byte, off int64) (res fuse.ReadResult, code fuse.Status) {
-	if len(f.item.resource.Digest) == 0 {
-		logrus.Errorf("no digest for %#v", f.item.resource)
-		return nil, fuse.EIO
-	}
-	dgst := digest.Digest(f.item.resource.Digest[0])
-	br, err := f.opts.Puller.PullBlob(f.opts.Image, dgst)
-	if err != nil {
-		logrus.Errorf("error while pulling %s: %v", dgst, err)
-		return nil, fuse.EIO
-	}
-	if _, err := br.Seek(off, 0); err != nil {
-		logrus.Errorf("error while seeking %s to %d: %v", dgst, off, err)
-		return nil, fuse.EIO
-	}
-	if n, err := br.Read(buf); err == io.EOF {
+	if n, err := f.blobReader.ReadAt(buf, off); err == io.EOF {
 		buf = buf[:n]
 	} else if err != nil {
-		logrus.Errorf("error while reading %d bytes at %d for %s: %v",
-			len(buf), off, dgst, err)
-		return nil, fuse.EIO
-	}
-	if err := br.Close(); err != nil {
-		logrus.Errorf("error while closing after reading %d bytes at %d for %s: %v",
-			len(buf), off, dgst, err)
+		logrus.Errorf("error while reading %d bytes at %d (%v): %v",
+			len(buf), off, f.item.resource.Path, err)
 		return nil, fuse.EIO
 	}
 	return fuse.ReadResultData(buf), fuse.OK

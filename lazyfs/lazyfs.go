@@ -93,7 +93,7 @@ func (fs *FS) Open(name string, flags uint32, fc *fuse.Context) (nodefs.File, fu
 	if st != fuse.OK {
 		return nil, st
 	}
-	return newFile(fs.opts, item), fuse.OK
+	return newFile(fs.opts, item)
 }
 
 func (fs *FS) Readlink(name string, fc *fuse.Context) (string, fuse.Status) {
@@ -124,9 +124,9 @@ func NewFS(opts Options) (*FS, error) {
 	return fs, nil
 }
 
-func NewServer(fs *FS) (*fuse.Server, error) {
-	nfs := pathfs.NewPathNodeFs(pathfs.NewReadonlyFileSystem(fs), nil)
-	conn := nodefs.NewFileSystemConnector(nfs.Root(), nil)
+func NewServer(fs *FS, opts *nodefs.Options) (*fuse.Server, error) {
+	nfs := pathfs.NewPathNodeFs(fs, nil)
+	conn := nodefs.NewFileSystemConnector(nfs.Root(), opts)
 	return fuse.NewServer(conn.RawFS(), fs.opts.Mountpoint,
 		&fuse.MountOptions{
 			FsName: fs.opts.Mountpoint + ":" + fs.opts.RefName,

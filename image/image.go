@@ -48,7 +48,8 @@ func indexPath(img string) string {
 }
 
 type BlobReader interface {
-	io.ReadSeeker
+	io.Reader
+	io.ReaderAt
 	io.Closer
 }
 
