@@ -6,6 +6,10 @@
 FILEgrain is a (long-term) proposal to extend [OCI Image Format](https://github.com/opencontainers/image-spec) to support CAS in the granularity of file, in a transport-agnostic way.
 
 **Your feedback is welcome.**
+
+## Talks
+
+- [Open Source Summit North America (September 11, 2017, Los Angeles)](https://ossna2017.sched.com/event/BDpM/filegrain-transport-agnostic-fine-grained-content-addressable-container-image-layout-akihiro-suda-ntt)
  
 ## Pros and Cons
 
@@ -169,6 +173,12 @@ Pulled blobs can be found on `/tmp/filegrain-blobcacheXXXXX`:
 ```
 
 This directory grows as you `read(2)` files within the container rootfs.
+
+### POC Benchmark
+
+Please refer to [#17](https://github.com/AkihiroSuda/filegrain/issues/17).
+
+e.g. Pulling 352MB of blobs is enough for using NLTK with 8.3GB `kaggle/python` image.
 
 ## Similar work
 
