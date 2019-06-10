@@ -7,7 +7,7 @@ import (
 	"github.com/hanwen/go-fuse/fuse"
 	"github.com/hanwen/go-fuse/fuse/nodefs"
 	"github.com/opencontainers/go-digest"
-	continuitypb "github.com/stevvooe/continuity/proto"
+	continuitypb "github.com/containerd/continuity/proto"
 )
 
 type file struct {
