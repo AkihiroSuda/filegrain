@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/AkihiroSuda/filegrain/continuityutil"
-	continuitypb "github.com/stevvooe/continuity/proto"
+	continuitypb "github.com/containerd/continuity/proto"
 )
 
 func loadTree(opts Options) (*nodeManager, error) {

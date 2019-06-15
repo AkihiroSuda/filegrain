@@ -7,7 +7,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	spec "github.com/opencontainers/image-spec/specs-go/v1"
-	continuitypb "github.com/stevvooe/continuity/proto"
+	continuitypb "github.com/containerd/continuity/proto"
 
 	"github.com/AkihiroSuda/filegrain/image"
 )

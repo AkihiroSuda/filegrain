@@ -12,8 +12,8 @@ import (
 	"github.com/opencontainers/go-digest"
 	"github.com/opencontainers/image-spec/specs-go"
 	spec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/stevvooe/continuity"
-	pb "github.com/stevvooe/continuity/proto"
+	"github.com/containerd/continuity"
+	pb "github.com/containerd/continuity/proto"
 
 	"github.com/AkihiroSuda/filegrain/continuityutil"
 	"github.com/AkihiroSuda/filegrain/image"
