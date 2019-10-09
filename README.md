@@ -1,3 +1,6 @@
+# :warning: FILEgrain is abandoned in favor of stargz/CRFS. See [containerd#3731](https://github.com/containerd/containerd/issues/3731) and https://github.com/ktock/remote-snapshotter
+
+- - -
 # FILEgrain: transport-agnostic, fine-grained content-addressable container image layout
 
 [![Build Status](https://travis-ci.org/AkihiroSuda/filegrain.svg)](https://travis-ci.org/AkihiroSuda/filegrain)
